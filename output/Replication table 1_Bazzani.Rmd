@@ -1,0 +1,12 @@
+---
+title: "Replication Table 1"
+author: "Mirco Bazzani"
+date: "3/21/2020"
+output: html_document
+---
+
+## Replication Background
+
+The replication paper I chose is not an empirical study, but it creates a gametheretic model which should visualize the break-even-Point of data sharing in research. 
+
+Break even in this context means that the costs of preparing the data for reconstructions are lower than the benefits of the users that come afterwards.
