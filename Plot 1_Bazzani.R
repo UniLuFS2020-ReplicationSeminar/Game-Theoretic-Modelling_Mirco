@@ -38,10 +38,10 @@ distribution_data <- ggplot(t_data, aes(x = t_dat)) +
 
 # Defining the Function ---------------------------------------------------
 
-time_cost_share <- 30
-time_cost_know <- 5
-correction <- 100
-plotmainlabel <- "test"
+#time_cost_share <- 30
+#time_cost_know <- 5
+#correction <- 100
+#plotmainlabel <- "test"
 
 function_break_even <- function (time_cost_share,time_cost_know,y_nonShare,correction,plotmainlabel)  {
 
@@ -54,7 +54,7 @@ t_search <- t_search / 365 # I need to transform this in order to make it a Frac
 ii<-1             
 steps<- 50 #I've not changed this because I do not know how this influences the results     
 
-results_matrix <- matrix(,steps,7)
+res_matrix <- matrix(,steps,7)
 
 # This correction is needed so the plots are within the correct range 
 # where the break-even point is visible. 
@@ -99,10 +99,10 @@ for (ii in 1:steps) {
 
   #Defining the cost benefits per researcher
   
-  Rate_List$benefits<- round(t_data*(Rate_List$use_opp/Rate_List$pap_research),3)     # per researcher saved time by reused datasets
+  Rate_List$benefits<- round(t_data_var*(Rate_List$use_opp/Rate_List$pap_research),3)     # per researcher saved time by reused datasets
   Rate_List$reusecost<-round(time_cost_know*(Rate_List$use_opp/Rate_List$pap_research),3)     # per researcher used time to process datasets for reuse
   Rate_List$cost<-round(time_cost_know*Rate_List$share_10,3)                  # per researcher cost 
-  Rate_List$time<-round((t_paper+t_data-Rate_List$benefits+Rate_List$cost+Rate_List$reusecost)*(pub_research/(t_paper+t_data)),3)        # ta+td and costs and benefits. Normalize for speed researcher (Tr to t_a+t_d).
+  Rate_List$time<-round((t_paper_var+t_data_var-Rate_List$benefits+Rate_List$cost+Rate_List$reusecost)*(pub_research/(t_paper_var+t_data_var)),3)        # ta+td and costs and benefits. Normalize for speed researcher (Tr to t_a+t_d).
   Rate_List$Publ<-round(1/Rate_List$time,3)                                                              # publications, with costs benefits from reuse and sharing
   Rate_List$impact<-round((Rate_List$Publ),3) # impact with costs benefits from reuse and sharing
   
@@ -110,10 +110,10 @@ for (ii in 1:steps) {
   head(Rate_List)
   sum(Rate_List$use_opp)/sum(Rate_List$Publ) 
   
-  res_matrix[ii,1]<-round(X,0)
+  res_matrix[ii,1]<-round(Xmb,0)
   res_matrix[ii,2]<-sum(Rate_List$use_opp)
   res_matrix[ii,3]<-round((sum(Rate_List$use_opp)/sum(Rate_List$Publ))*100,2) # reuse publications per year 
-  res_matrix[ii,4]<-round((sum(Rate_List$use_opp)/X)*100,2) # reuse datasets per year
+  res_matrix[ii,4]<-round((sum(Rate_List$use_opp)/Xmb)*100,2) # reuse datasets per year
   res_matrix[ii,5]<-sum(Rate_List$impact-Rate_List$effect_rate)/N_Total_Researchers
   res_matrix[ii,6]<-f
   res_matrix[ii,7]<-((sum(Rate_List$impact-Rate_List$effect_rate)/N_Total_Researchers)/mean(Rate_List$impact))*100
@@ -153,4 +153,6 @@ if (plotmainlabel=="Scenario A"){
 }
 
 function_break_even(time_cost_share = 1,time_cost_know = 1,y_nonShare =50,correction=150,plotmainlabel="Scenario A")
-
+function_break_even(time_cost_share = 1,time_cost_know = 15,y_nonShare =125,correction=150,plotmainlabel="Scenario B")
+function_break_even(time_cost_share = 15,time_cost_know = 1,y_nonShare =9,correction=150,plotmainlabel="Scenario C")
+function_break_even(time_cost_share = 15,time_cost_know = 15,y_nonShare =6.5,correction=150,plotmainlabel="Scenario D")
