@@ -59,7 +59,7 @@ for (ii in 1:steps) {
 f <- f + 0.0000004 / correct
 
 # steady state calculation of pool of available datasets X
-Ys<-(probab[2]/100)*Y_tot_resot_res # total sharing researchers
+Ys<-(probab[2]/100)*Y_tot_res # total sharing researchers
 T1 <- t_a + t_c + t_d
 T2 <- t_a + t_c + t_r 
 X<-(-(qx*T1-Ys*f)+sqrt((qx*T1-Ys*f)^2-4*(qx*f*T2)*-Ys))/(2*(qx*f*T2)) # the common pool of datasets; 'resource'.

@@ -7,12 +7,13 @@
 
 # Setuo -------------------------------------------------------------------
 
+library(scales)
 library(tidyverse)
 library(ggplot2)
 
 # Basic Parameters --------------------------------------------------------
 
-set.seed(03071996) # setting the seed in order to make my model reproducible 
+set.seed(71996) # setting the seed in order to make my model reproducible 
 
 N_Total_Researchers <- 10000 # I'll keep the total amount of researchers proposed by T.P.
 t_paper <- tibble(t_paper = round(rnorm(10000, 47, 5))) %>% 
@@ -38,9 +39,9 @@ distribution_data <- ggplot(t_data, aes(x = t_dat)) +
 
 # Defining the Function ---------------------------------------------------
 
-#time_cost_share <- 30
-#time_cost_know <- 5
-#correction <- 100
+#time_cost_share <- 15
+#time_cost_know <- 15
+#correction <- 6.5
 #plotmainlabel <- "test"
 
 function_break_even <- function (time_cost_share,time_cost_know,y_nonShare,correction,plotmainlabel)  {
@@ -58,7 +59,7 @@ res_matrix <- matrix(,steps,7)
 
 # This correction is needed so the plots are within the correct range 
 # where the break-even point is visible. 
-f <- 0.00000001 / correction        #Tessa Ponk does not explain this variable any further.
+f <- 0.000000000001 / correction        #Tessa Ponk does not explain this variable any further.
 # we therefore do not know where she takes these numbers from. I assume that she just
 # took a very small number.
 
@@ -73,7 +74,7 @@ for (ii in 1:steps) {
   f <- f + 0.0000004 / correction #this makes even less sense to me.
   
   # steady state calculation of pool of available datasets X
-  N_sharers <- (y_nonShare/100)*N_Total_Researchers # total sharing researchers
+  N_sharers <- (y_share/100)*N_Total_Researchers # total sharing researchers
   time_collect <- t_paper_var + time_cost_share + t_data_var  # This line includes my
   #new variable and my randomly generated datset
   time_no_collect <- t_paper_var + time_cost_share + time_cost_know + t_search
@@ -81,18 +82,18 @@ for (ii in 1:steps) {
   Xmb <- (-(qx*time_collect-N_sharers*f)+sqrt((qx*time_collect-N_sharers* f)^2 -
             4*(qx*f*time_no_collect)*-N_sharers))/(2*(qx*f*time_no_collect))
 
-  pap_research <- rexp(N_Total_Researchers, 
-                       rate=mean(t_paper$t_pap, na.rm = TRUE)+
-                         mean(t_data$t_dat, na.rm = T))
+  pap_research <- rexp(N_Total_Researchers, rate=t_paper_var+t_data_var)
+
   # I've had to use the means of the two tibbles "t_paper" and "t_data" because 
   # the rexp funciton does not work with tibbles
-  
+
   pub_research <- 1/pap_research
-  share_10 <- sample(c(0,1),N_Total_Researchers,replace=TRUE,probability)
-  effect_rate <- pub_research * runif(10000,1,20) #The Effect Rate in the official
+  share <- sample(c(0,1),N_Total_Researchers,replace=TRUE,probability)
+  effect_rate_full <- pub_research * runif(10000,0.1,0.2) #The Effect Rate in the official
   #Paper is constant and equal to pub_research. I randomized it
-  
-  Rate_List <- data.frame(pap_research, pub_research,share_10,effect_rate)
+  effect_rate <- squish(effect_rate_full, quantile(effect_rate_full, c(.0001,.999)))
+
+  Rate_List <- data.frame(pap_research, pub_research,share,effect_rate)
   xy <- (1-(1/(1+(f*Xmb))))
   chance_appropriate_set <- lapply(pap_research,rbinom, 1, xy ) #Chance of finding appropriate set
   Rate_List$use_opp <- sapply(chance_appropriate_set, sum)
@@ -101,13 +102,14 @@ for (ii in 1:steps) {
   
   Rate_List$benefits<- round(t_data_var*(Rate_List$use_opp/Rate_List$pap_research),3)     # per researcher saved time by reused datasets
   Rate_List$reusecost<-round(time_cost_know*(Rate_List$use_opp/Rate_List$pap_research),3)     # per researcher used time to process datasets for reuse
-  Rate_List$cost<-round(time_cost_know*Rate_List$share_10,3)                  # per researcher cost 
+  Rate_List$cost<-round(time_cost_know*Rate_List$share,3)                  # per researcher cost 
   Rate_List$time<-round((t_paper_var+t_data_var-Rate_List$benefits+Rate_List$cost+Rate_List$reusecost)*(pub_research/(t_paper_var+t_data_var)),3)        # ta+td and costs and benefits. Normalize for speed researcher (Tr to t_a+t_d).
   Rate_List$Publ<-round(1/Rate_List$time,3)                                                              # publications, with costs benefits from reuse and sharing
   Rate_List$impact<-round((Rate_List$Publ),3) # impact with costs benefits from reuse and sharing
   
   
   head(Rate_List)
+  summary(Rate_List)
   sum(Rate_List$use_opp)/sum(Rate_List$Publ) 
   
   res_matrix[ii,1]<-round(Xmb,0)
@@ -139,7 +141,7 @@ points(0,publperc_approx,col="orange",cex=4,pch=15)
 abline(v=0)
 
 if (plotmainlabel=="Scenario A"){
-  legend(-0.4,200/correct,cex=1.6,legend=c("Publication", "Dataset pool"),pch=c(15,16),col=c("orange","red")) 
+  legend(-0.4,200/correction,cex=1.6,legend=c("Publication", "Dataset pool"),pch=c(15,16),col=c("orange","red")) 
 } # end of if statement
 
 # From the below matrix 'res_matrix' can be read (in approximation because of stochastic results):
@@ -152,7 +154,8 @@ if (plotmainlabel=="Scenario A"){
 
 }
 
-function_break_even(time_cost_share = 1,time_cost_know = 1,y_nonShare =50,correction=150,plotmainlabel="Scenario A")
-function_break_even(time_cost_share = 1,time_cost_know = 15,y_nonShare =125,correction=150,plotmainlabel="Scenario B")
-function_break_even(time_cost_share = 15,time_cost_know = 1,y_nonShare =9,correction=150,plotmainlabel="Scenario C")
-function_break_even(time_cost_share = 15,time_cost_know = 15,y_nonShare =6.5,correction=150,plotmainlabel="Scenario D")
+function_break_even(time_cost_share = 1,time_cost_know = 1,y_nonShare = 80, correction=10,plotmainlabel="Scenario A")
+function_break_even(time_cost_share = 1,time_cost_know = 15,y_nonShare = 80,correction=100,plotmainlabel="Scenario B")
+function_break_even(time_cost_share = 15,time_cost_know = 1,y_nonShare = 80,correction=125,plotmainlabel="Scenario C")
+function_break_even(time_cost_share = 15,time_cost_know = 15,y_nonShare = 80,correction=30,plotmainlabel="Scenario D")
+
