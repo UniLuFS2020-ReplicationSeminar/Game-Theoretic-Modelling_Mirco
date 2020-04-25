@@ -95,7 +95,6 @@ function_break_even <- function (time_cost_share,time_cost_know,y_nonShare,corre
     pap_research <- rexp(N_Total_Researchers, rate= t_paper_var_test + t_data_var_test)
     # I've had to use the means of the two tibbles "t_paper" and "t_data" because 
     # the rexp funciton does not work with tibbles
-    ?runif
     pub_research <- 1/pap_research
     share <- sample(c(0,1),N_Total_Researchers,replace=TRUE,probability)
     effect_rate_full <- pap_research * runif(10000,0.9,1) #The Effect Rate in the official
