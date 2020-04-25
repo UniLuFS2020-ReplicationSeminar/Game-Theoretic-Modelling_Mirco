@@ -17,16 +17,16 @@ set.seed(71996) # setting the seed in order to make my model reproducible
 
 N_Total_Researchers <- 10000 # I'll keep the total amount of researchers proposed by T.P.
 t_paper <- tibble(t_paper = round(rnorm(10000, 47, 5))) %>% 
-  mutate(t_paper, t_pap = t_paper / 365)
+  mutate(t_paper, t_pap = t_paper / 365) #This tells us how long a researcher has in order to write a paper
 t_data <- tibble(t_data = round(rnorm(10000, 73, 7))) %>% 
-  mutate(t_data, t_dat = t_data / 365)
+  mutate(t_data, t_dat = t_data / 365) #This tells us the amount of time a researcher spends in order to gather Data
 t_search <- round(runif(1,0.5,3), digits = 1) # This is not included in the original paper 
 # t_search assumes that one spends at least 0.5-3 Days searching for an appripriate Dataset.
+#t_data and t_paper are normally distributed amounts; i chose the proposed time by the original paper +/- ten percent
 
-#Normally distributed amoubt; i chose the proposed time +/- ten percent
 qx <- runif(1,0.1,0.2) #randomized decay rate¨
 y_nonShare <- 80 #I'll keep this one constant too, as I do not want to make the model more complex
-# I've changed the parameter accoriding to the following statistics: https://ec.europa.eu/info/research-and-innovation/strategy/goals-research-and-innovation-policy/open-science/open-science-monitor/facts-and-figures-open-research-data_en
+# I've changed the parameter according to the following statistics: https://ec.europa.eu/info/research-and-innovation/strategy/goals-research-and-innovation-policy/open-science/open-science-monitor/facts-and-figures-open-research-data_en
 
 # Visualize to show that our parameters are normally distributed:
 
@@ -46,14 +46,14 @@ distribution_data <- ggplot(t_data, aes(x = t_dat)) +
 
 function_break_even <- function (time_cost_share,time_cost_know,y_nonShare,correction,plotmainlabel)  {
 
-y_share <- 100 - y_nonShare
+y_share <- 100 - y_nonShare #The percentage of researchers which do not share their data
 probability <- c(y_share, y_nonShare)
-time_cost_share <- time_cost_share / 365          
-time_cost_know <- time_cost_know / 365   
-t_search <- t_search / 365 # I need to transform this in order to make it a Fraction / Day
+time_cost_share <- time_cost_share / 365 #This gets defined by the upper funktion         
+time_cost_know <- time_cost_know / 365  #This gets defined by the upper funktion    
+t_search <- t_search / 365 # I need to transform my own variable in order to make it a Fraction / Day
 
-ii<-1             
-steps<- 50 #I've not changed this because I do not know how this influences the results     
+ii<-1 #is going to be needed for a for-loop
+steps<- 10 #How often the for-loop gets activated  
 
 res_matrix <- matrix(,steps,7)
 
