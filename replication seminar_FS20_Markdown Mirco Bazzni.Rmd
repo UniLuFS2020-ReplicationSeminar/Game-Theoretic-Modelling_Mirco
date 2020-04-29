@@ -1,0 +1,26 @@
+---
+title: "replication seminar_FS20_Markdown Mirco Bazzani"
+author: "Mirco Bazzani"
+date: "4/26/2020"
+output: html_document
+---
+
+# Replicating a game theoretic model
+## Replication of "The Time Efficiency Gain in Sharing and Reuse of Research Data" by Tessa Pronk
+
+### Introduction
+
+As we are 
+
+```{r}
+library(knitr)
+library(kableExtra)
+Results <- head(`Results Matrix`)
+
+`Results` %>% kable(caption = "The output of the model construction") %>% 
+  kable_styling(bootstrap_options = c("striped", "hover"))
+
+```
+
+
+

@@ -35,6 +35,12 @@ Y_ns<-50              # this is the proportion not sharing researchers
 # Define the function 
 #######################################################
 
+#t_c=1
+#t_r=1
+#Y_ns=50
+#correction=150
+#plotmainlabel="Scenario A"
+
 function_break_even <- function (t_c,t_r,Y_ns,correction,plotmainlabel)  {
 
 Y_s <- 100-Y_ns           # this is the proportion sharing researchers 
@@ -69,13 +75,13 @@ X<-(-(qx*T1-Ys*f)+sqrt((qx*T1-Ys*f)^2-4*(qx*f*T2)*-Ys))/(2*(qx*f*T2)) # the comm
   Tr<-1/Pr                                                   # publication rate per researcher
   share_rate<-sample(c(0,1),Y_tot_res,replace=TRUE,probab)   # 0= no sharing 1= sharing
   Er<- Pr                                          # citations to produced publications per researcher
-
+  
   Rlist<-data.frame(Pr,Tr,Er,share_rate)                     # Researcherslist with metrics for all reasearchers
   
   chance_appr_set<-lapply(Pr,rbinom,1,(1-(1/(1+(f*X)))))     # the chance of finding an appropriate set for any publication
   
-  Rlist$use_opp<-sapply(chance_appr_set,sum)                 # per researcher publications with a reused dataset
-  
+  Rlist$use_opp<-sapply(chance_appr_set, sum)                 # per researcher publications with a reused dataset
+  summary(Rlist)
   
 # Costs or benefits per researcher:
   Rlist$benefits<- round(t_d*(Rlist$use_opp/Rlist$Pr),3)     # per researcher saved time by reused datasets
@@ -115,6 +121,19 @@ points(res_matrix[,7],res_matrix[,4],pch=16,col="red",cex=1.6)
 points(0,dataperc_approx,col="red",cex=4,pch=16)
 points(0,publperc_approx,col="orange",cex=4,pch=15)
 abline(v=0)
+
+res_ma_tibb <- as_tibble(res_matrix)
+
+res_ma_tibb <- res_ma_tibb %>% 
+  gather(`%reuse/pool`, `%reuse/publ`, key = "form", value = "percent")
+
+print(ggplot(data = res_ma_tibb, mapping = aes(`%impactincr`, percent)) + 
+        geom_point(aes(color = form)) +
+        geom_smooth(aes(color = form), se = FALSE) +
+        labs(title = "Efficacy benefits in reusage of datasets", subtitle = plotmainlabel, x = "% added productivity", y = "% reusage"))
+
+assign('Rate_List', Rlist, globalenv())
+assign('Results Matrix', res_matrix, globalenv())
 
 if (plotmainlabel=="Scenario A"){
 legend(-0.4,200/correct,cex=1.6,legend=c("Publication", "Dataset pool"),pch=c(15,16),col=c("orange","red")) 
