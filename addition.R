@@ -79,17 +79,25 @@ join <- bind_cols(tbl1, tbl2)
 join <- gather(join, day100, day100_2, key= "source", value = "cases")
 join <- join %>% mutate(cases = round(cases))
 join <- as_tibble(join)
-
+join <- recode(join, "day100" = "non-sharers")
+?replace
 # Creating Plots ------------------------------------
 
 
 join %>% ggplot(aes(x = cases, fill = source)) +
-  geom_histogram(alpha = .5) +
-  geom_freqpoly(mapping = aes(color = source), size = .3, alpha = .7)
+  geom_histogram(alpha = .4, binwidth = 5) +
+  geom_freqpoly(mapping = aes(color = source), size = .5, alpha = .7) +
+  labs(x = "Number of Citations", fill = "Sharers vs non-Sharers", 
+       colour = "Sharers vs non-Sharers") +
+  scale_fill_discrete(name = "Sharers vs non-Sharers", labels = c("non-sharers", "sharers")) +
+  scale_color_discrete(name = "Sharers vs non-Sharers", labels = c("non-sharers", "sharers"))
+  
 
 
 join %>% ggplot(aes(x = cases, y = ..density.., color = source)) +
-  geom_freqpoly(alpha = .5)
+  geom_freqpoly(alpha = .7, size = .6) +
+  labs(x = "Number of Citations") +
+  scale_color_discrete(name = "Sharers vs non-Sharers", labels = c("non-sharers", "sharers"))
 
 
 
