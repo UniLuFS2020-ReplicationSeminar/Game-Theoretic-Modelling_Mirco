@@ -1,26 +1,635 @@
 ---
-title: "replication seminar_FS20_Markdown Mirco Bazzani"
+title: "Replication Seminar FS20 - Results"
 author: "Mirco Bazzani"
 date: "4/26/2020"
-output: html_document
+output:
+  word_document: default
+  pdf_document:
+    latex_engine: xelatex
+  html_document: default
+  
+always_allow_html: true
 ---
+
+```{r, echo = FALSE, include=FALSE} 
+library(tinytex)
+library(tidyverse)
+library(ggplot2)
+
+
+set.seed(071996) # setting the seed in order to make my model reproducible 
+
+N_Total_Researchers <- 10000 # I'll keep the total amount of researchers proposed by T.P.
+
+t_paper <- tibble(t_paper = round(rnorm(10000, 47, 5))) %>% 
+  mutate(t_paper, t_pap = t_paper / 365)
+t_pap <- t_paper$t_pap #This tells us how long a researcher has in order to write a paper
+
+t_data <- tibble(t_data = round(rnorm(10000, 73, 7))) %>% 
+  mutate(t_data, t_dat = t_data / 365) #This tells us the amount of time a researcher spends in order to gather Data
+t_dat <- t_data$t_dat
+
+t_search <- round(runif(1,0.5,3), digits = 1) # This is not included in the original paper 
+# t_search assumes that one spends at least 0.5-3 Days searching for an appripriate Dataset.
+#t_data and t_paper are normally distributed amounts; i chose the proposed time by the original paper +/- ten percent
+
+qx <- runif(1,0.1,0.2) #randomized decay rate¨
+#I'll keep this one constant too, as I do not want to make the model more complex
+# Visualize to show that our parameters are normally distributed:
+
+distribution_paper <- ggplot(t_paper, aes(x = t_pap)) +
+  geom_bar()
+
+distribution_data <- ggplot(t_data, aes(x = t_dat)) +
+  geom_bar()
+
+
+#time_cost_share <- 15
+#time_cost_know <- 15
+#correction <- 100
+#plotmainlabel <- "test"
+
+set.seed(071996)
+
+function_break_even <- function(time_cost_share,time_cost_know,y_nonShare,correction,plotmainlabel)  {
+  
+  y_share <- 100 - y_nonShare #The percentage of researchers which do not share their data
+  probability <- c(y_share, y_nonShare)
+  time_cost_share <- time_cost_share / 365 #This gets defined by the upper funktion         
+  time_cost_know <- time_cost_know / 365  #This gets defined by the upper funktion    
+  t_search <- t_search / 365 # I need to transform my own variable in order to make it a Fraction / Day
+  
+  ii<-1 #is going to be needed for a for-loop
+  steps<- 100 #How often the for-loop gets activated  
+  
+  res_matrix <- matrix(,steps,7)
+
+  # This correction is needed so the plots are within the correct range 
+  # where the break-even point is visible. 
+  f <-  0.000000000001 / correction        #Tessa Ponk does not explain this variable any further.
+  # we therefore do not know where she takes these numbers from. I assume that she just
+  # took a very small number.
+  
+  for (ii in 1:steps) {  
+    
+    #The formula below does not work with data-frames. This is why I have to reduce my
+    #random sample to numeric variables. In a first test, I only used the mean. But the goal
+    #of this reproduction is the increased randomness and complexity; this is why i chose
+    #to use one random number out of my dataset instead.
+    
+    t_paper_var_test <- as.numeric(t_pap[sample(10000,1)])
+    t_data_var_test <- as.numeric(t_dat[sample(10000,1)])
+    
+    t_paper_var <- as.numeric(summarise(t_paper, t_paper_var = mean(t_pap)))
+    t_data_var <- as.numeric(summarise(t_data, t_data_var_test = mean(t_dat)))
+    
+    f <- f + 0.0000004/ correction #this makes even less sense to me.
+    
+    # steady state calculation of pool of available datasets X
+    N_sharers <- (y_share/100)*N_Total_Researchers # total sharing researchers
+    time_collect <-  t_paper_var  + time_cost_share + t_data_var  # This line includes my
+    #new variable and my randomly generated datset
+    time_no_collect <-  t_paper_var  + time_cost_share + time_cost_know + t_search
+    
+    Xmb <- (-(qx*time_collect-N_sharers*f)+sqrt((qx*time_collect-N_sharers* f)^2 -
+                                                  4*(qx*f*time_no_collect)*-N_sharers))/(2*(qx*f*time_no_collect))
+    
+    pap_research <- rexp(N_Total_Researchers, rate= t_paper_var + t_data_var)
+    # I've had to use the means of the two tibbles "t_paper" and "t_data" because 
+    # the rexp funciton does not work with tibbles
+    pub_research <- 1/pap_research
+    share <- sample(c(0,1),N_Total_Researchers,replace=TRUE,probability)
+    effect_rate <- pap_research * runif(10000,.9,1.1) 
+    
+    #The Effect Rate in the official
+    #Paper is constant and equal to pap_research. I randomized it
+    #effect_rate <- squish(effect_rate_full, quantile(effect_rate_full, c(.0001,.999))) #`I've had to
+    #deal with outliers in some way.`
+   
+    Rate_List <- data.frame(pap_research, pub_research, effect_rate, share)
+    #xy <- (1-(1/(1+(f*Xmb))))
+    chance_appropriate_set <- lapply(pap_research,rbinom, 1, (1-(1/(1+(f*Xmb)))) ) #Chance of finding appropriate set
+    Rate_List$use_opp <- sapply(chance_appropriate_set, sum)
+    
+    assign('chance_appropriate_set', chance_appropriate_set, globalenv())
+    #Defining the cost benefits per researcher
+    
+    Rate_List$benefits<- round(t_dat*(Rate_List$use_opp/Rate_List$pap_research),3)     # per researcher saved time by reused datasets
+    Rate_List$reusecost<-round(time_cost_know*(Rate_List$use_opp/Rate_List$pap_research),3)     # per researcher used time to process datasets for reuse
+    Rate_List$cost<-round(time_cost_share*Rate_List$share,3)                  # per researcher cost 
+    Rate_List$time<-round((t_pap+t_dat-Rate_List$benefits+Rate_List$cost+Rate_List$reusecost)*(pub_research/(t_pap+t_dat)),3)        # ta+td and costs and benefits. Normalize for speed researcher (Tr to t_a+t_d).
+    Rate_List$Publ<-round(1/Rate_List$time,3)                                                              # publications, with costs benefits from reuse and sharing
+    Rate_List$impact<-round((Rate_List$Publ),3) # impact with costs benefits from reuse and sharing
+    
+    head(Rate_List)
+    sum(Rate_List$use_opp)/sum(Rate_List$Publ) 
+    
+    res_matrix[ii,1]<-round(Xmb,0)
+    res_matrix[ii,2]<-sum(Rate_List$use_opp)
+    res_matrix[ii,3]<-round((sum(Rate_List$use_opp)/sum(Rate_List$Publ))*100,2) # reuse publications per year 
+    res_matrix[ii,4]<-round((sum(Rate_List$use_opp)/Xmb)*100,2) # reuse datasets per year
+    res_matrix[ii,5]<-sum(Rate_List$impact-Rate_List$effect_rate)/N_Total_Researchers
+    res_matrix[ii,6]<-f
+    res_matrix[ii,7]<-((sum(Rate_List$impact-Rate_List$effect_rate)/N_Total_Researchers)/mean(Rate_List$impact))*100
+    
+  }
+  
+  colnames(res_matrix)<-c("totalPool","reuse","%reuse/publ","%_reuse/pool","av.imp/res","f_param","%impactinc")
+  
+  f_approx<-res_matrix[which(abs(res_matrix[,5])==min(abs(res_matrix[,5]))),6]
+  publperc_approx<-as.numeric(res_matrix[which(abs(res_matrix[,5])==min(abs(res_matrix[,5]))),3])
+  dataperc_approx<-as.numeric(res_matrix[which(abs(res_matrix[,5])==min(abs(res_matrix[,5]))),4])
+  
+  perc5_prod <-as.numeric(res_matrix[which(abs(res_matrix[,5])==min(abs(res_matrix[,5]))),7])
+  
+  res_ma_tibb <- as_tibble(res_matrix)
+  
+  res_ma_tibb <- res_ma_tibb %>% 
+    gather(`%_reuse/pool`, `%reuse/publ`, key = "form", value = "percent")
+  
+  print(ggplot(data = res_ma_tibb, mapping = aes(`%impactinc`, percent)) + 
+  geom_point(aes(color = form)) +
+  geom_smooth(aes(color = form), se = FALSE) +
+  labs(title = "Efficacy benefits in reusage of datasets", subtitle = plotmainlabel, x = "% added productivity", y = "% reusage"))
+  
+  assign('Rate_List', Rate_List, globalenv())
+  assign('Results Matrix', res_matrix, globalenv())
+    
+} # end of if statement
+
+function_break_even(time_cost_share = 1,time_cost_know = 1,y_nonShare = 50, correction=100,plotmainlabel="Scenario A")
+  
+```
 
 # Replicating a game theoretic model
 ## Replication of "The Time Efficiency Gain in Sharing and Reuse of Research Data" by Tessa Pronk
 
-### Introduction
+## Introduction
 
-As we are 
+Reproducing a Model from a study which, for itself, wants to calculate the benefits of datasharing seemed more than fitting to me. I've therefore chosen to work on the paper ["*The Time Efficiency Gain in Sharing and Reuse of Research Data*"](https://datascience.codata.org/articles/10.5334/dsj-2019-010/) by Tessa Pronk, which produced an estimate of efficiency gains based on Gametheretic modelling. 
 
-```{r}
+Even though the replication data  was generated for this particular study, I've had to reconcile a [diffrent Paper](https://peerj.com/articles/1242/) by the author in order to better understand the mathematic models she used in her R code. I've included some of the formula in chapter 1.1 of this replication paper.
+
+As my main issue with the original paper lied in it's fixed parameters and ecxlusion of any kind of randomness, I've added some random noise to the original code in order to increase it's complexity. This had only little effect on the results, even though most of the basic parameters were either replaced by a random sample or the usage of a random distribution of some form.
+
+I've therefore decided to add a second layer to my reproduction and created a model based on the results on the datasets created in my first replication in order to maximize the learning benefits of this replication seminar. My own model was based on the findings of [D.V. Lande et. al.](https://www.researchgate.net/publication/307598597_Model_of_information_spread_in_social_networks), which proposed the usage of Markov Chains in order to predict the distribution of information in a social network.
+
+## 1. Gametheoretic Model by T.Pronk
+### 1.1 - Summary
+
+Tessa Ponk wanted to model the turning point from which the additional expenditure of refurbisching and structuring the data for future users is outweighed by the efficiency gain from researchers not needing to gather the data on their own. She accomplishes this by assuming that the produced papers per year are indicating how efficient the scientific community really is. 
+
+In short, the main variables are: 
+
+1. How long it takes to *write a paper*
+2. How long it takes to *gather data*
+3. How long it takes to *prepare* the data for *reproduction*
+4. How easy the shared data is *understandable by other* researchers
+
+The original paper assumes that point 1 and 2 are constant, and only the latter vary in their dimensions. I've changed this so that both 1 and 2 are normally distributed values. I've chosen the parameters found in the original paper as means, and a standard deviation of 10% around those values. 
+You find a full list of all parameters in Table 1. 
+
+| Parameter | Original Definition | Original Value | Changes in Replication |
+| -------- | ---------- | ------- | ------- |
+| $t_a$ / $t_{pap}$ | Time-cost to produce a paper (days per year) | 47/365 | A normal distribution with a sd of 10% around the mean of 47 |
+| $t_d$ / $t_{dat}$ | Time-cost to produce a dataset (days per year)| 73/365 | A normal distribution with a sd of 10% around the mean of 73 |
+| $t_c$ / $timeCostShare$ | Time-cost to prepare a dataset for sharing | 0.1 | Defined by the function; either 1 or 15 days |
+| - / $imeCostSearch$ | Time-cost for searching an appropriate Dataset (not in original paper) | - | A Uniform distribution between 0.5 and 3 days |
+| $t_r$ / $timeCostKnow$ | Time-cost to prepare a dataset to reuse | 0.05 | Defined by the function; either 1 or 15 days |
+| $qx$ | Decay rate of shared datasets | 0.1| A Uniform distribution between 0.1 and 0.2 |
+| $b$ | Citation benefit (sharing researcher) | 0 | - |
+| $f$ | Probability to find an appropriate dataset | 0.00001 | Not changed, as the parameter is different in paper and original model |
+| $Y_s$ | Proportion of sharing researchers | .5 | Defined in the function, not changed |
+
+: Comparison of Variables between my replication and the original paper
+
+These parameters were then inserted into the base formula of the model, which calculates the pool of shared datasets $X_{mb}$.
+
+$$ X_{mb} = -(qx(t_a + t_c + t_d) - Y_{sf}) + \frac{\sqrt{(qx(t_a + t_c + t_d)-Y_s)^2 - 4(qx * f(t_a + t_c + t_r + TimeCostSearch)) * (-Y_s)}}{2(qx*f(t_a + t_c + t_r + TimeCostSearch))} $$
+
+
+Furthermore, the model calculated the **Effect Rate** of every published paper by including the possible citations per paper. The formula was split up into 3 steps:
+
+1. The *time spent* writing a paper, defined by:
+
+$$ T_{s / ns} = t_a + \frac{t_d}{1+f*X} + (t_r-\frac{t_r}{1+f*X}) + t_c $$
+
+2. The number of publications per Researcher $P$:
+
+$$ P_{s / ns} = \frac{1}{T_{s / ns}} $$
+3. The actual *Effect Rate*, defined by the publications, multiplied with the citations per paper *c* and the citation benefit $b$:
+
+$$ E_s P_{s / ns} = P_{s / ns} * c * (1+b) $$
+
+The last formula can be ignored, as Tessa Pronk sets the Effectrate equal to the published papers. My second model takes this Effect rate and makes further calculations with it, so we will keep this in mind. I've slightly changed the model, so that the Effect Rate varies unifromly around the Papers / Researcher by a factor of 0.9 - 1.1.
+
+### 1.2 - Results
+
+Table 2 shows the results I calculated, using the original model in addition with my slight changes, and Table 3 gives us the corresponding definitions of the variable.
+
+```{r table, echo = FALSE, message = FALSE, warning = FALSE}
+
+library(kableExtra)
 library(knitr)
 library(kableExtra)
-Results <- head(`Results Matrix`)
 
-`Results` %>% kable(caption = "The output of the model construction") %>% 
+Results <- head(`Rate_List`)
+
+`Results` %>% kable(caption = "The output of the model by tessa ponk", format = "latex") %>% 
   kable_styling(bootstrap_options = c("striped", "hover"))
+
 
 ```
 
+|Parameter | Definition |
+|----------|------------|
+|**pap_research**| Calculated by an exponential distribution with a rate of $t_d + t_a$ |
+|**pub_research**| The inverse of pap_research, calculated by $1/pap_research$ |
+|**effect_rate**| The EffectRate, originally equal to pap_research, in my Paper `` `effect_rate <- pap_research * runif(10000,.9,1.1)` `` |
+|**share**| 0/1 coded variable which defines for each line if the corresponding researcher shares it's work. Random sample based on the ratio of $Y_s$|
+|use_opp| A vector, calculation the chanche of finding an appropriate Dataset and applying it on every pap_research by a the factor $(1-(1/(1+(f*X_mb))))$ |
+|benefits| The time saved by using a premade dataset $t_a(useOpp/papResearch)$|
+|reusecost| The time lost by trying to understand a premade dataset $TimeCostKnow(useOpp/papResearch)$  |
+|cost| The time costs of sharing a dataset (only for sharing scientists) $TimeCostShare*share$ |
+|time| $(t_a+t_d-benefits+cost+reusecost)*(pubResearch/(t_a+t_d)$ |
+|Publ| $1/time$   |
+|**impact**| $impact = Publ$ |
+: Definitons of the results of the model by Tessa Pronk
 
+I've chosen not to alter the base model any more than needed, and focus on producing a very own model. The plots below are therefore the result of the above mentioned equations, and are based on 4 different scenarios.
+
+> *Scenario A*, where a Researcher takes only 1 day to share and get to know the data.
+
+> *Scenario B*, where a Researcher takes only 1 day to share, but 15 to get to know the data.
+
+> *Scenario C*, where a Researcher takes 15 days to share, but only 1 to get to know the data.
+
+> *Scenario D*, where a Researcher takes 15 days to share and get to know the data.
+
+```{r plots setup, include = FALSE, echo = FALSE, message=FALSE, warning=FALSE}
+library(tidyverse)
+library(ggplot2)
+library(gridExtra)
+set.seed(071996)
+
+p1 <- function_break_even(time_cost_share = 1,time_cost_know = 1,y_nonShare = 50, correction=100,plotmainlabel="Scenario A")
+
+p1 <- as_tibble(p1)
+
+p1 <- p1 %>% 
+    gather(`%_reuse/pool`, `%reuse/publ`, key = "form", value = "percent")
+
+plot_a <- print(ggplot(data = p1, mapping = aes(`%impactinc`, percent)) + 
+  geom_point(aes(color = form)) +
+  geom_smooth(aes(color = form), se = FALSE) +
+  labs(title = "Efficacy benefits in reusage of datasets", subtitle = "Scenario A", x = "% added productivity", y = "% reusage"))
+
+
+
+p2 <- function_break_even(time_cost_share = 1,time_cost_know = 15,y_nonShare = 50,correction=125,plotmainlabel="Scenario B")
+
+p2 <- as_tibble(p2)
+
+p2 <- p2 %>% 
+    gather(`%_reuse/pool`, `%reuse/publ`, key = "form", value = "percent")
+
+plot_b <-print(ggplot(data = p2, mapping = aes(`%impactinc`, percent)) + 
+  geom_point(aes(color = form)) +
+  geom_smooth(aes(color = form), se = FALSE) +
+  labs(title = "Efficacy benefits in reusage of datasets", subtitle = "Scenario B", x = "% added productivity", y = "% reusage"))
+
+
+p3 <- function_break_even(time_cost_share = 15,time_cost_know = 1,y_nonShare = 50,correction=9,plotmainlabel="Scenario C")
+
+p3 <- as_tibble(p3)
+
+p3 <- p3 %>% 
+    gather(`%_reuse/pool`, `%reuse/publ`, key = "form", value = "percent")
+
+plot_c <- print(ggplot(data = p3, mapping = aes(`%impactinc`, percent)) + 
+  geom_point(aes(color = form)) +
+  geom_smooth(aes(color = form), se = FALSE) +
+  labs(title = "Efficacy benefits in reusage of datasets", subtitle = "Scenario C", x = "% added productivity", y = "% reusage"))
+
+
+p4 <- function_break_even(time_cost_share = 15,time_cost_know = 15,y_nonShare = 50,correction=6.5,plotmainlabel="Scenario D")
+
+p4 <- as_tibble(p4)
+
+p4 <- p4 %>% 
+    gather(`%_reuse/pool`, `%reuse/publ`, key = "form", value = "percent")
+
+plot_d <- print(ggplot(data = p4, mapping = aes(`%impactinc`, percent)) + 
+  geom_point(aes(color = form)) +
+  geom_smooth(aes(color = form), se = FALSE) +
+  labs(title = "Efficacy benefits in reusage of datasets", subtitle = "Scenario D", x = "% added productivity", y = "% reusage"))
+
+grid.arrange(plot_a, plot_b, plot_c, plot_d, top = "Scenarios with differing durations of data gathering")
+
+```
+
+```{r plots print, echo = FALSE, message = FALSE, warning = FALSE}
+
+grid.arrange(plot_a, plot_b, plot_c, plot_d, top = "Scenarios with differing durations of data exploration")
+
+```
+
+The models show that it takes increasingly more people which reuse the data to reach the 0-point of added productivity, with the scenarios *C* and *D*, where preparing the data for sharing takes up to 15 days need up to 10% of data reusage in the population.
+
+But I do not want to discuss the findings of the original paper, as this is not my task, and go on with the learnings I've had during this first exploration.
+
+### 1.2 - Learnings
+
+I want to start with the complexity of the paper. As I am not the most patient person, I've started replicating the model way before I've really understood the mathematics behind it This cost me way more time than it should have, as I was not familiar with all of the parameters. But what I've found in the end was that neither of the papers provided by Tessa Pronk fully explain the cumputation she has done for her model - you need to look at the code in order to understand her results and how she got to them.
+
+This not only showed me the importance of replication, but also how intransparent some research papers possibly can be.
+
+Secondly, I was able to find a minor Error in Tessa Ponks base code which I first had to fix in order for the model to work. While only being a minor porblem, it showed that even the original authors had issues with the sheer amount of parameters they created during their computation, which resulted in them naming one variable wrong and finally the code leading to an error. 
+
+This abundance of variables, combined with my impatience led to errors on my side as well, as many parameters like $t_a$, $t_d$ and $t_r$ nearly sound and look the same. I therefore mixed up two of them whilst rewriting the code, what led my results to be absolutely nonsensical.
+
+Nevertheless, working on the code and trying to improve it - even though i deleted mos of my changes in the end - thaught me a lot about the workings of R.
+
+## 2. Markov Chains
+### 2.1 - Summary
+
+As I was not satisfied with my own replication, I've searcher for ways to alter the results in a new model that was not based on a replication. Instead of replicating code this allowed my to tinker on my very own solutions.
+
+As I already had created a sample dataset with included results for the model of Tessa Ponk, I chose to base my model on these results. The parameters that were used for my further computation were $papResearch$, $pupResearch$, $share$, $EffectRate$ and $impact$.
+
+What I wanted to model was the approximate amount of citations per paper that would occur in my sample population, and if sharing the data would have a visible effect like boosting or reducing citations per paper. The method I used was a watered down form of a **Markvo chain**, where each paper was given an energy level based on its initial **effect rate** which randomly increased or decreased during the upcoming 100 days. Based on Tessa Pronks paper, I assumed that the Effect Rate and it's popularity was equal to the number of Citations.
+
+The model works as follows:
+* Each case $p_i$ in the population of $n=10'000$ gets assigned an *Enegry Level* $E$. This Enegy Level is equal to it's Effect rate.
+
+$$ E = effectRate$$ 
+* I then started a random walk of $j = 100$ steps. In each step, a randomly chosen amount gets added or substracted to the Energy Level of each case. If the Energy Level of a Variable fell below 0, it was reset to 0. The changes of the Energy Level were based on a t-Distribution with a mean of 0 and a sd of 10. This leaves us with the following density for each incrementation:
+
+|Energy change | Density |
+|---|---|
+|+3 | .01|
+|+2 | .06|
+|+1 | .25 |
+|+/- 0 | .42|
+|-1 | .25 |
+|-2 | .06|
+|-3 | .01|
+
+The corresponding plot is seen right below.
+
+```{r studend Distribution, echo = FALSE, message = FALSE, warning = FALSE}
+library(tidyverse)
+library(ggplot2)
+set.seed(1234)
+
+stud.dist <- as_tibble(round(rt(n = 10000, df = 10), 1))
+
+ggplot(stud.dist, aes(x=value, y=..density..)) +
+  geom_freqpoly() +
+  geom_vline(xintercept = -3:3, color = "red", alpha = .5) +
+  geom_text(aes(x=1.5, label="+1", y=.5), colour="red", alpha = .5, angle=90, text=element_text(size=10)) +
+  geom_text(aes(x=-1.5, label="-1", y=.5), colour="red", alpha = .5, angle=90, text=element_text(size=10)) +
+  geom_text(aes(x=2.5, label="+2", y=.5), colour="red", alpha = .5, angle=90, text=element_text(size=10)) +
+  geom_text(aes(x=-2.5, label="-2", y=.5), colour="red", alpha = .5, angle=90, text=element_text(size=10)) +
+  geom_text(aes(x=3.5, label="+3", y=.5), colour="red", alpha = .5, angle=90, text=element_text(size=10)) +
+  geom_text(aes(x=-3.5, label="-3", y=.5), colour="red", alpha = .5, angle=90, text=element_text(size=10)) +
+  labs(title = "Probability of energy-changes in modelled Markov-Chain")
+```
+
+* Furthermore, for every step, Energy Level decreases by a uniformly distributed parameter $dr$, that fluctuates between 0.05 and 0.15. This **Decay Rate** assumes that the novelty of a scientific paper decreases over time.
+
+* As I want to take into account the **"virality"** of popular papers (and to counterreact the decay rate), popular papers that were cited over 15 times get an energy boost of $E_i >= 15 ⇒ (E_i+1.5)$.
+
+* And lastly, I assumed that the distribution of the **replication data for viral papers** adds to their total citation count. This is why $E_i >= 10 ⇒ (E_i+effect)$ for every sharing researcher. To geth the variable $effect$, I normalized the Effect Rate for every Researcher to a number between 0 and 1 using the formula 
+
+$$ effect = \frac{effectRate_i - effectRate_{min}}{effectRate_{max}-effectRate_{min}} $$
+
+Each computation is done for each of the $n$ cases, and repeated $j$ times.
+
+### 2.2 - Results
+
+```{r setup, include=FALSE}
+set.seed(1234)
+
+Short_List <- Rate_List %>% 
+  mutate(impact_r = round(effect_rate)) %>% 
+  select(share,impact_r)
+
+effect <- Rate_List %>%  
+  mutate(effect = 1.5*(((Rate_List$effect_rate - min(Rate_List$effect_rate)) / 
+                                             (max(Rate_List$effect_rate) - min(Rate_List$effect_rate))))) %>% 
+  select(effect)
+
+sy <- Short_List %>% filter(share == 1)
+sn <- Short_List %>% filter(share == 0)
+  
+SLY <- as.tibble(sy)
+SLN <- as.tibble(sn)
+i <- 1
+max <- 100
+dr <- runif(10000,0.05,0.15)
+
+for (i in  1:max) {
+  
+  days <- paste("day", 1:max, sep = "")
+  #q <- matrix(days,1,max)
+  #t <- as.character(q[1,i])
+  
+  SLN <- print(SLN %>% add_column(!!(days[i]) := 0))
+  
+  mutate(SLN, day1 = impact_r)
+  
+  if (i >= 1){
+    
+    SLN[2+i] <- SLN[(2+i)-1] + round(rt(n = 10000, df = 10), 1)
+    SLN[2+i] <- replace(SLN[2+i], SLN[2+i] < 0, 0)
+    SLN[2+i] <- SLN[2+i] + ifelse(SLN[[2+i]] >= 15, 1.2, 0)
+    SLN[2+i] <- SLN[2+i] - dr
+    
+  }
+  
+  print(SLN)
+  
+}
+
+for (i in  1:max) {
+  
+  days <- paste("day", 1:max, sep = "")
+  #q <- matrix(days,1,max)
+  #t <- as.character(q[1,i])
+  
+  SLY <- print(SLY %>% add_column(!!(days[i]) := 0))
+  
+  mutate(SLY, day1 = impact_r)
+  
+  if (i >= 1){
+    
+    SLY[2+i] <- SLY[(2+i)-1] + round(rt(n = 10000, df = 10),1)
+    SLY[2+i] <- replace(SLY[2+i], SLY[2+i] < 0, 0)
+    SLY[2+i] <- SLY[2+i] + ifelse(SLY[[2+i]] >= 15, 1.1, 0)
+    SLY[2+i] <- SLY[2+i] + ifelse(SLY[[2+i]] >= 10, as.numeric(sample_n(effect,1)), 0)
+    SLY[2+i] <- SLY[2+i] - dr
+    
+  }
+  
+  print(SLY)
+  
+}
+
+
+# Combining the Results of SLN and SLY ------------------------------------
+SLN[102] <- replace(SLN[102], SLN[102] < 0, 0)
+SLY[102] <- replace(SLY[102], SLY[102] < 0, 0)
+
+tbl1 <- head(select(SLN, day100), 4000)
+tbl2 <- head(select(SLY, day100), 4000)
+tbl2 <- rename(tbl2, day100_2 = day100)
+join <- bind_cols(tbl1, tbl2)
+join <- gather(join, day100, day100_2, key= "source", value = "cases")
+join <- join %>% mutate(cases = round(cases))
+join <- as_tibble(join)
+#join <- recode(join, "day100" = "non-sharers")
+
+```
+
+The results of this Random Walk are seen below:
+
+```{r plot Markov, echo = FALSE, message = FALSE, warning = FALSE}
+join %>% ggplot(aes(x = cases, fill = source)) +
+  geom_histogram(alpha = .4, binwidth = 5) +
+  geom_freqpoly(mapping = aes(color = source), size = .5, alpha = .7) +
+  labs(x = "Number of Citations", fill = "Sharers vs non-Sharers", 
+       colour = "Sharers vs non-Sharers") +
+  scale_fill_discrete(name = "Sharers vs non-Sharers", labels = c("non-sharers", "sharers")) +
+  scale_color_discrete(name = "Sharers vs non-Sharers", labels = c("non-sharers", "sharers"))
+
+join %>% ggplot(aes(x = cases, y = ..density.., color = source)) +
+  geom_freqpoly(alpha = .7, size = .6) +
+  labs(x = "Number of Citations") +
+  scale_color_discrete(name = "Sharers vs non-Sharers", labels = c("non-sharers", "sharers"))
+```
+
+Even though the sharers got an additional bonus for virality, the frequency plots nearly overlap. This seems to show that the random increase mapped by the t-distribution has the stronger effect on the population.
+
+Although I would not call my model scientififally accurate by any means, it does show the characteristics of a Weibull-Distribution that - *according to the authors this model is based on* - occurs in the real world, too. But I have to add that the original paper was based on interactions on twitter, and was built around completely different assumptions concerning the changes in energy levels per step.
+
+```{r Weibull, echo = FALSE, message = FALSE, warning = FALSE}
+curve(dweibull(x, shape=4, scale = 10), from=0, to=100, main = 'Weibull Distribution (shape = 4, scale = 10)', ylab = 'Density', xlab = "citations", lwd = 2, col = 'steelblue')
+
+```
+
+What I found to be the most interesting point was that my model showed a remarkable resemblance to the actual distribution of citations found in actual academia shown for example by [this paper](https://www.researchgate.net/publication/274451637_Editorial_Bias_in_Legal_Academia).
+
+![Histogram of citations in legal papers](Histogram-of-total-citations-excludes-highest-1-percent-of-citations.png)
+
+### 2.3 - Learning
+
+Working on my own model was something I have never done to this extend before. I would have liked to spend more time on it in order to remove the "playfullness" and transform it into real academic work, but for the time being I am really fond of the learning effect I've had this far. 
+
+Form creating markdown documents to plotting up to modelling, the replication seminar has surely thaught me a lot and showed me that the potential of R far exceeds what I've learned this until this point. 
+
+The code I've used for my own model is pasted below, and can be found in the shared project file under the name "marov_model_bazzani.R"
+
+```{r, eval= FALSE }
+set.seed(1234)
+
+Short_List <- Rate_List %>% 
+  mutate(impact_r = round(effect_rate)) %>% 
+  select(share,impact_r)
+
+effect <- Rate_List %>%  
+  mutate(effect = 1.5*(((Rate_List$effect_rate - min(Rate_List$effect_rate)) / 
+                                             (max(Rate_List$effect_rate) - min(Rate_List$effect_rate))))) %>% 
+  select(effect)
+
+sy <- Short_List %>% filter(share == 1)
+sn <- Short_List %>% filter(share == 0)
+  
+SLY <- as.tibble(sy)
+SLN <- as.tibble(sn)
+i <- 1
+max <- 100
+dr <- runif(10000,0.05,0.15)
+
+for (i in  1:max) {
+  
+  days <- paste("day", 1:max, sep = "")
+  #q <- matrix(days,1,max)
+  #t <- as.character(q[1,i])
+  
+  SLN <- print(SLN %>% add_column(!!(days[i]) := 0))
+  
+  mutate(SLN, day1 = impact_r)
+  
+  if (i >= 1){
+    
+    SLN[2+i] <- SLN[(2+i)-1] + round(rt(n = 10000, df = 10), 1)
+    SLN[2+i] <- replace(SLN[2+i], SLN[2+i] < 0, 0)
+    SLN[2+i] <- SLN[2+i] + ifelse(SLN[[2+i]] >= 15, 1.2, 0)
+    SLN[2+i] <- SLN[2+i] - dr
+    
+  }
+  
+  print(SLN)
+  
+}
+
+for (i in  1:max) {
+  
+  days <- paste("day", 1:max, sep = "")
+  #q <- matrix(days,1,max)
+  #t <- as.character(q[1,i])
+  
+  SLY <- print(SLY %>% add_column(!!(days[i]) := 0))
+  
+  mutate(SLY, day1 = impact_r)
+  
+  if (i >= 1){
+    
+    SLY[2+i] <- SLY[(2+i)-1] + round(rt(n = 10000, df = 10),1)
+    SLY[2+i] <- replace(SLY[2+i], SLY[2+i] < 0, 0)
+    SLY[2+i] <- SLY[2+i] + ifelse(SLY[[2+i]] >= 15, 1.1, 0)
+    SLY[2+i] <- SLY[2+i] + ifelse(SLY[[2+i]] >= 10, as.numeric(sample_n(effect,1)), 0)
+    SLY[2+i] <- SLY[2+i] - dr
+    
+  }
+  
+  print(SLY)
+  
+}
+
+
+# Combining the Results of SLN and SLY ------------------------------------
+SLN[102] <- replace(SLN[102], SLN[102] < 0, 0)
+SLY[102] <- replace(SLY[102], SLY[102] < 0, 0)
+
+tbl1 <- head(select(SLN, day100), 4000)
+tbl2 <- head(select(SLY, day100), 4000)
+tbl2 <- rename(tbl2, day100_2 = day100)
+join <- bind_cols(tbl1, tbl2)
+join <- gather(join, day100, day100_2, key= "source", value = "cases")
+join <- join %>% mutate(cases = round(cases))
+join <- as_tibble(join)
+
+# Creating Plots ------------------------------------
+
+
+join %>% ggplot(aes(x = cases, fill = source)) +
+  geom_histogram(alpha = .4, binwidth = 5) +
+  geom_freqpoly(mapping = aes(color = source), size = .5, alpha = .7) +
+  labs(x = "Number of Citations", fill = "Sharers vs non-Sharers", 
+       colour = "Sharers vs non-Sharers") +
+  scale_fill_discrete(name = "Sharers vs non-Sharers", labels = c("non-sharers", "sharers")) +
+  scale_color_discrete(name = "Sharers vs non-Sharers", labels = c("non-sharers", "sharers"))
+  
+
+
+join %>% ggplot(aes(x = cases, y = ..density.., color = source)) +
+  geom_freqpoly(alpha = .7, size = .6) +
+  labs(x = "Number of Citations") +
+  scale_color_discrete(name = "Sharers vs non-Sharers", labels = c("non-sharers", "sharers"))
+
+summary(join)
+
+```
 
